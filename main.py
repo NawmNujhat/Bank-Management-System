@@ -1,6 +1,5 @@
 import random
 import string
-from luhn import *
 import sqlite3
 from sqlite3 import Error
 
@@ -44,6 +43,24 @@ def create_pin():
     pin=str(random.randint(1000,9999))
     return pin
 
+def do_transfer(acid,receiver,amount):
+    cur.execute("SELECT balance FROM card WHERE number=?", (acid,))
+    donor=cur.fetchall()
+    cur.execute("SELECT balance FROM card WHERE number=?", (receiver,))
+    receiverr = cur.fetchall()
+    if(acid==receiver):
+        print(" “You can't transfer money to the same account!”")
+    elif(donor[0][0]<amount):
+        print("Not enough money!")
+    else:
+        balance_donor=donor[0][0]-amount
+        balance_receiver=receiverr[0][0]+amount
+        cur.execute("UPDATE card SET balance=? WHERE number=?", (balance_donor, acid))
+        cur.execute("UPDATE card SET balance=? WHERE number=?", (balance_receiver, receiver))
+        conn.commit()
+        print("Success!")
+
+
 
 
 
@@ -68,15 +85,56 @@ def log_account():
                 print("You have successfully logged in!")
             print("\n")
             print("1. Balance")
-            print("2. Log out")
+            print("2. Add income")
+            print("3. Do transfer")
+            print("4. Close account")
+            print("5. Log out")
+
             print("0. Exit")
 
             a = int(input())
             if (a == 1):
                 cur.execute("SELECT balance FROM card WHERE number=? And pin=?", (acid, pid))
                 row = cur.fetchall()
-                print("Balance: 0")
-            elif (a == 2):
+                print("Balance: ",row[0][0])
+            elif(a==2):
+                print("\n")
+                print("Enter income:")
+                income=int(input())
+                cur.execute("SELECT balance FROM card WHERE number=? And pin=?", (acid, pid))
+                row = cur.fetchall()
+                balance=row[0][0]+income
+                cur.execute("UPDATE card SET balance=? WHERE number=?",(balance,acid))
+                conn.commit()
+                print("Income was added!")
+            elif(a==3):
+                print("Transfer")
+                print("Enter card number:")
+                transfer = input()
+                list_transfer=transfer[:-1]
+                if(transfer[0]!='4'):
+                    print("Such a card does not exist.")
+                elif(transfer[len(transfer)-1]!=str(luhn_algorithm(list_transfer) )and transfer[0]=='4'):
+                    print("Probably you made mistake in the card number. Please try again!")
+
+                elif(transfer[len(transfer)-1]==str(luhn_algorithm(list_transfer)) and transfer[0]=='4'):
+
+                  cur.execute("SELECT * FROM card WHERE number=?", (transfer,))
+                  row_transfer=cur.fetchall()
+                  print(row_transfer)
+                  if(len(row_transfer)==0):
+                     print("Such a card does not exist.")
+                  else:
+                     print("Enter how much money you want to transfer:")
+                     amount=int(input())
+                     print(amount)
+                     do_transfer(acid,transfer,amount)
+            elif(a==4):
+                print("\n")
+                print("The account has been closed!")
+                cur.execute("Delete From card where number= ?",(acid,))
+                conn.commit()
+            elif (a == 5):
                 print("You have successfully logged out!")
                 break
             elif (a == 0):
@@ -88,7 +146,7 @@ def main():
   global conn,cur
   conn = sqlite3.connect('card.s3db')
   cur=conn.cursor()
-  createTable="Create Table IF NOT EXISTS card(id int primary key,number text,pin text,balance INTEGER DEFAULT 0)"
+  createTable="Create Table IF NOT EXISTS card(id integer primary key autoincrement,number text,pin text,balance INTEGER DEFAULT 0)"
   cur.execute(createTable)
   conn.commit()
   i=0
@@ -112,8 +170,8 @@ def main():
           print("Your card PIN:")
           print(PIN)
           account_number=str(account_number)
-          id=random.randint(10000,99999)
-          cur.execute("INSERT INTO card (id,number, pin,balance) VALUES (?, ?, ?, ?)", (id,account_number, PIN,0))
+          cur.execute("INSERT INTO card (id,number, pin,balance) VALUES ((SELECT MAX(id) + 1 FROM card), ?, ?, ?)", (account_number, PIN,0))
+
           conn.commit()
 
 
